@@ -105,12 +105,50 @@ Status is calculated dynamically:
 - [x] CRUD REST API
 - [x] Dynamic status calculation
 - [x] Acknowledgement API
-- [ ] Notification history JPA
-- [ ] Email service
-- [ ] Scheduled expiry checker
-- [ ] Duplicate notification prevention
+- [x] Notification history JPA
+- [x] Email service
+- [x] Scheduled expiry checker
+- [x] Duplicate notification prevention
 - [ ] Backend tests
 - [ ] Angular frontend
 - [ ] Final office deployment guide
 
 Keep this guide synchronized after every development phase.
+
+
+## Notification engine - completed
+New files:
+1. backend/src/main/java/com/certmonitor/model/NotificationHistory.java
+2. backend/src/main/java/com/certmonitor/repository/NotificationHistoryRepository.java
+3. backend/src/main/java/com/certmonitor/service/EmailNotificationService.java
+4. backend/src/main/java/com/certmonitor/service/CertificateMonitoringService.java
+5. backend/src/main/java/com/certmonitor/scheduler/CertificateExpiryScheduler.java
+6. backend/src/main/java/com/certmonitor/controller/NotificationController.java
+
+Additional application.properties values:
+- app.mail.enabled=${MAIL_ENABLED:false}
+- app.mail.from=${MAIL_FROM:no-reply@certificate-monitor.local}
+- app.scheduler.certificate-check-cron=0 0 8 * * *
+
+The cron above runs daily at 08:00 in the JVM/server local timezone.
+
+Reminder thresholds:
+- 30 days = D30
+- 15 days = D15
+- 7 days = D7
+- 3 days = D3
+- 1 day = D1
+- expiry date and later = EXPIRED
+
+Duplicate prevention:
+A threshold is considered complete only when a history row exists with SEND_STATUS=SENT.
+If SMTP fails, the FAILED audit row is retained and the scheduler can retry on a later eligible run.
+
+Development safety:
+Keep MAIL_ENABLED=false until SMTP is configured. This prevents accidental office/user email during development.
+
+Notification APIs:
+- GET /api/notifications/history
+- POST /api/notifications/run-check
+
+The run-check endpoint is intended for controlled testing/admin use. Add authentication before production deployment.
