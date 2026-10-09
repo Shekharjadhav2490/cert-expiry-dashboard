@@ -40,7 +40,7 @@ Open http://localhost:4200. Angular proxies /api to localhost:8080.
 - Override APP_ZONE and ALERT_CRON as backend environment variables. For a local test use ALERT_CRON='0 */1 * * * *'; restore the daily schedule afterward.
 
 ## API
-GET /api/certificates; POST /api/certificates; GET /api/email-config; PUT /api/email-config.
+GET /api/certificates; POST /api/certificates; PUT /api/certificates/{id}; DELETE /api/certificates/{id}; GET /api/email-config; PUT /api/email-config.
 Example POST body:
 ```json
 {"applicationName":"WebCenter Content","environment":"PROD","expiryDate":"2026-12-31","ownerTeam":"ECM Operations","recipients":["owner@example.com"]}
@@ -51,4 +51,4 @@ Example POST body:
 `cd backend && mvn test`
 
 ## First-version scope
-This version supports listing and adding certificates and saving email settings. Editing/renewal and deletion are future work. Bind defaults to loopback and there is no login yet: add authentication and authorisation before network deployment. Run one backend scheduler instance; SMTP and database writes cannot be atomic, so a crash after sending but before recording may repeat an email. Delivery records should have a retention policy for long-running deployments. The provider label is descriptive; sending uses the configured SMTP host.
+This version supports listing, adding, editing, and deleting certificates and saving email settings. Edit supports renewing the expiry date, updating recipient emails, and changing application details. Delete asks for confirmation and removes the application and its alert delivery records transactionally. No schema migration is required. Bind defaults to loopback and there is no login yet: add authentication and authorisation before network deployment. Run one backend scheduler instance; SMTP and database writes cannot be atomic, so a crash after sending but before recording may repeat an email. Delivery records should have a retention policy for long-running deployments. The provider label is descriptive; sending uses the configured SMTP host.

@@ -19,6 +19,21 @@ public class Api {
  public List<CertificateView> certificates(){ LocalDate today=LocalDate.now(zone);return db.query("SELECT * FROM certificates ORDER BY expiry_date, application_name",(r,n)-> {LocalDate date=r.getDate("expiry_date").toLocalDate();return new CertificateView(r.getLong("id"),r.getString("application_name"),r.getString("environment"),date,r.getString("owner_team"),List.of(r.getString("recipients").split(",")),ChronoUnit.DAYS.between(today,date),status(date,today));});}
  @GetMapping("/certificates") public List<CertificateView> list(){return certificates();}
  @PostMapping("/certificates") @ResponseStatus(HttpStatus.CREATED) public Map<String,String> add(@Valid @RequestBody CertificateInput c){db.update("INSERT INTO certificates(application_name,environment,expiry_date,owner_team,recipients) VALUES (?,?,?,?,?)",c.applicationName().trim(),c.environment(),java.sql.Date.valueOf(c.expiryDate()),c.ownerTeam().trim(),String.join(",",c.recipients().stream().map(String::trim).distinct().toList()));return Map.of("message","Application added");}
+
+ @PutMapping("/certificates/{id}") public Map<String,String> update(@PathVariable long id,@Valid @RequestBody CertificateInput c){
+  int changed=db.update("UPDATE certificates SET application_name=?,environment=?,expiry_date=?,owner_team=?,recipients=? WHERE id=?",c.applicationName().trim(),c.environment(),java.sql.Date.valueOf(c.expiryDate()),c.ownerTeam().trim(),String.join(",",c.recipients().stream().map(String::trim).distinct().toList()),id);
+  if(changed==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Application not found");
+  return Map.of("message","Application updated");
+ }
+ @DeleteMapping("/certificates/{id}") @org.springframework.transaction.annotation.Transactional public Map<String,String> delete(@PathVariable long id){
+  // Lock the parent before deleting delivery history, then delete both in one transaction.
+  var ids=db.queryForList("SELECT id FROM certificates WHERE id=? FOR UPDATE",Long.class,id);
+  if(ids.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Application not found");
+  db.update("DELETE FROM alert_delivery WHERE certificate_id=?",id);
+  db.update("DELETE FROM certificates WHERE id=?",id);
+  return Map.of("message","Application deleted");
+ }
+
  public record MailConfig(@NotBlank @Size(max=100) String provider,@NotBlank @Pattern(regexp="[A-Za-z0-9.-]+") @Size(max=253) String host,@Min(1) @Max(65535) int port,@Size(max=254) String username,@NotBlank @Email String fromEmail,@NotNull @Pattern(regexp="STARTTLS|SSL") String security,boolean enabled){}
  @GetMapping("/email-config") public MailConfig config(){return db.query("SELECT * FROM email_config WHERE id=1",(r,n)->new MailConfig(r.getString("provider"),r.getString("host"),r.getInt("port"),r.getString("username"),r.getString("from_email"),r.getString("security"),r.getInt("enabled")==1)).stream().findFirst().orElse(null);}
  @PutMapping("/email-config") public Map<String,String> save(@Valid @RequestBody MailConfig c){db.update("MERGE INTO email_config d USING (SELECT 1 id FROM dual) s ON(d.id=s.id) WHEN MATCHED THEN UPDATE SET provider=?,host=?,port=?,username=?,from_email=?,security=?,enabled=? WHEN NOT MATCHED THEN INSERT(id,provider,host,port,username,from_email,security,enabled) VALUES(1,?,?,?,?,?,?,?)",c.provider(),c.host(),c.port(),c.username(),c.fromEmail(),c.security(),c.enabled()?1:0,c.provider(),c.host(),c.port(),c.username(),c.fromEmail(),c.security(),c.enabled()?1:0);return Map.of("message","Email configuration saved");}
